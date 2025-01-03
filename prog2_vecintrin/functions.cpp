@@ -83,6 +83,41 @@ void clampedExpSerial(float* values, int* exponents, float* output, int N) {
 void clampedExpVector(float* values, int* exponents, float* output, int N) {
     // Implement your vectorized version of clampedExpSerial here
     //  ...
+    __cmu418_vec_int intConstZero = _cmu418_vset_int(0);
+    __cmu418_vec_int intConstOne = _cmu418_vset_int(1);
+    __cmu418_vec_float clampMaxVector = _cmu418_vset_float(4.18f);
+
+    __cmu418_vec_float valuesVector, xpowerVector, resultVector;
+    __cmu418_vec_int exponentsVector;
+    __cmu418_mask maskAll, maskClamp, maskNonZeroExponent;
+
+    for (int i = 0; i < N; i += VECTOR_WIDTH) {
+        maskAll = _cmu418_init_ones(min(N - i, VECTOR_WIDTH));
+
+        _cmu418_vload_float(valuesVector, values + i, maskAll);
+        _cmu418_vload_int(exponentsVector, exponents + i, maskAll);
+
+        _cmu418_vset_float(resultVector, 1.0f, maskAll);
+        _cmu418_vmove_float(xpowerVector, valuesVector, maskAll);
+
+        _cmu418_vgt_int(maskNonZeroExponent, exponentsVector, intConstZero, maskAll);
+
+        while (_cmu418_cntbits(maskNonZeroExponent)) {
+            __cmu418_vec_int oddExponentFlag;
+            __cmu418_mask oddExponentMask, oddExponentMaskAndAll;
+            _cmu418_vbitand_int(oddExponentFlag, exponentsVector, intConstOne, maskAll);
+            _cmu418_veq_int(oddExponentMask, oddExponentFlag, intConstOne, maskAll);
+            oddExponentMaskAndAll = _cmu418_mask_and(oddExponentMask, maskAll);
+            _cmu418_vmult_float(resultVector, resultVector, xpowerVector, oddExponentMaskAndAll);
+            _cmu418_vmult_float(xpowerVector, xpowerVector, xpowerVector, maskAll);
+            _cmu418_vshiftright_int(exponentsVector, exponentsVector, intConstOne, maskAll);
+            _cmu418_vgt_int(maskNonZeroExponent, exponentsVector, intConstZero, maskAll);
+        }
+
+        _cmu418_vgt_float(maskClamp, resultVector, clampMaxVector, maskAll);
+        _cmu418_vmove_float(resultVector, clampMaxVector, maskClamp);
+        _cmu418_vstore_float(output + i, resultVector, maskAll);
+    }
 }
 
 
@@ -100,5 +135,23 @@ float arraySumSerial(float* values, int N) {
 float arraySumVector(float* values, int N) {
     // Implement your vectorized version here
     //  ...
-	return 0.f;
+    __cmu418_vec_float sumVector = _cmu418_vset_float(0.0f);
+    __cmu418_vec_float valuesVector;
+    __cmu418_mask maskAll = _cmu418_init_ones();
+
+    for (int i = 0; i < N; i += VECTOR_WIDTH) {
+        _cmu418_vload_float(valuesVector, values + i, maskAll);
+        _cmu418_vadd_float(sumVector, sumVector, valuesVector, maskAll);
+    }
+
+    int spread = VECTOR_WIDTH;
+    while (spread > 1) {
+        _cmu418_hadd_float(sumVector, sumVector);
+        _cmu418_interleave_float(sumVector, sumVector);
+        spread = spread / 2;
+    }
+
+    float result;
+    _cmu418_vstore_float(&result, sumVector, maskAll);
+    return result;
 }
