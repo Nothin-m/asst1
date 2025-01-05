@@ -14,16 +14,17 @@ void initGood(float *values, int N) {
     for (int i=0; i<N; i++)
     {
         // Todo: Choose values
-        values[i] = 1.0f;
+        values[i] = 2.999f;
     }
 }
 
 // Generate data that gives low relative speedup
 void initBad(float *values, int N) {
-    for (int i=0; i<N; i++)
+    for (int i=0; i<N-1; i++)
     {
         // Todo: Choose values
         values[i] = 1.0f;
     }
-}
 
+    values[N - 1] = 2.999f;
+}
